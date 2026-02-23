@@ -16,7 +16,8 @@ export default function Dashboard() {
   async function fetchGangs() {
     const res = await fetch("/api/gangs");
     if (res.status === 401) { router.push("/admin"); return; }
-    setGangs(await res.json());
+    const json = await res.json();
+    setGangs(json.data ?? []);
     setLoading(false);
   }
 
