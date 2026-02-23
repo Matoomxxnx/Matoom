@@ -1,0 +1,11 @@
+[
+  {
+    "slug": "wellesley",
+    "name": "WELLESLEY",
+    "description": "BORN OF WINTERFELL",
+    "members": [
+      { "name": "Member 01" },
+      { "name": "Member 02" }
+    ]
+  }
+]
