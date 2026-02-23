@@ -1,19 +1,11 @@
-import { NextAuthOptions } from "next-auth"
-import CredentialsProvider from "next-auth/providers/credentials"
+import { NextRequest, NextResponse } from "next/server"
 
-export const authOptions: NextAuthOptions = {
-  providers: [
-    CredentialsProvider({
-      name: "Credentials",
-      credentials: {
-        username: { label: "Username", type: "text" },
-        password: { label: "Password", type: "password" }
-      },
-      async authorize(credentials) {
-        // ใส่ logic ตรวจสอบ user ตรงนี้
-        return null
-      }
-    })
-  ],
-  secret: process.env.NEXTAUTH_SECRET,
+export async function POST(request: NextRequest) {
+  const { password } = await request.json()
+  
+  if (password === process.env.ADMIN_PASSWORD) {
+    return NextResponse.json({ ok: true })
+  }
+  
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 }

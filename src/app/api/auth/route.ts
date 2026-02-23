@@ -1,6 +1,11 @@
-import NextAuth from "next-auth"
-import { authOptions } from "../../../lib/auth" // ปรับ path ตามโปรเจกต์คุณ
+import { NextRequest, NextResponse } from "next/server"
 
-const handler = NextAuth(authOptions)
-
-export { handler as GET, handler as POST }
+export async function POST(request: NextRequest) {
+  const { password } = await request.json()
+  
+  if (password === process.env.ADMIN_PASSWORD) {
+    return NextResponse.json({ ok: true })
+  }
+  
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+}
