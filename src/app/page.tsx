@@ -5,7 +5,7 @@ import MusicPill from "./components/MusicPill";
 import MusicPlayerCard from "./components/MusicPill";
 
 // ✅ เหลือปุ่มเดียว MEENPRO
-const partners = [{ name: "MEENPRO", href: "/", featured: true }];
+const partners = [{ name: "MEENPRO", href: "/meenpro", featured: true }];
 
 export default function Page() {
   // 🔥 TYPEWRITER LOOP
