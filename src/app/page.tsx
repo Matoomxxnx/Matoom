@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import MusicPill from "./components/MusicPill";
 import MusicPlayerCard from "./components/MusicPill";
 
@@ -10,12 +13,26 @@ const partners = [
 ];
 
 export default function Page() {
+  // ✅ เพิ่มแค่นี้: typewriter
+  const text = "MEENPRO";
+  const [typed, setTyped] = useState("");
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    if (index < text.length) {
+      const timeout = setTimeout(() => {
+        setTyped((prev) => prev + text[index]);
+        setIndex((prev) => prev + 1);
+      }, 150);
+      return () => clearTimeout(timeout);
+    }
+  }, [index]);
+
   return (
     <main className="flex-1">
       <section className="relative h-screen w-full overflow-hidden flex flex-col items-center justify-center bg-[#0a0a0a] text-white font-sans selection:bg-white/20">
         {/* Floating music */}
-       
-/
+        {/* (เดิมมึงมี / อยู่ตรงนี้ กูเอาออก เพราะมันทำให้ไฟล์พัง) */}
 
         {/* Background layers */}
         <div className="absolute inset-0 z-0 pointer-events-none">
@@ -35,7 +52,8 @@ export default function Page() {
             {/* Title */}
             <div className="flex flex-col items-center text-center">
               <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold uppercase tracking-[0.2em] md:tracking-[0.3em] text-white/90 mb-3 min-h-[1.2em]">
-                MEENPRO{" "}
+                {/* ✅ เปลี่ยนแค่ตรงนี้: MEENPRO -> typed */}
+                {typed}{" "}
                 <span className="inline-block ml-2 w-1 md:w-2 h-10 md:h-16 lg:h-20 bg-white align-bottom mb-2 md:mb-4" />
               </h1>
               <p className="text-xs md:text-sm text-white/40 uppercase tracking-[0.5em] md:tracking-[0.8em]">
@@ -102,21 +120,21 @@ export default function Page() {
                 className="text-white/40 font-bold hover:text-white/60 transition-colors"
               >
                 Matoom Wellesley
-                
               </a>
             </p>
           </footer>
         </div>
       </section>
-        <div className="fixed right-1 bottom-10 md:right-2 md:bottom-2 z-[9999]">
-  <MusicPlayerCard
-    audioSrc="/music/song.mp3"
-    title="LOVE IN THE DARK"
-    artist="ADELE"
-    coverUrl="https://lyricsthaiblog.files.wordpress.com/2017/10/hello.jpg"
-    defaultVolume={0.25}
-  />
-</div>
+
+      <div className="fixed right-1 bottom-10 md:right-2 md:bottom-2 z-[9999]">
+        <MusicPlayerCard
+          audioSrc="/music/song.mp3"
+          title="LOVE IN THE DARK"
+          artist="ADELE"
+          coverUrl="https://lyricsthaiblog.files.wordpress.com/2017/10/hello.jpg"
+          defaultVolume={0.25}
+        />
+      </div>
     </main>
   );
 }
