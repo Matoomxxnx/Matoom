@@ -1,38 +1,48 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const login = async () => {
-    // แบบ magic link (ง่ายสุด)
-    const { error } = await supabase.auth.signInWithOtp({ email });
-    if (error) alert(error.message);
-    else alert("เช็คอีเมลเพื่อกดลิงก์เข้าสู่ระบบ");
+  const onLogin = async () => {
+    setLoading(true);
+    try {
+      const r = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      const j = await r.json();
+      if (!r.ok) return alert(j?.message ?? "Login failed");
+
+      window.location.href = "/admin/dashboard"; // ✅ ชัวร์
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center p-6">
       <div className="w-full max-w-sm space-y-3">
         <h1 className="text-2xl font-bold">Admin Login</h1>
+
         <input
+          type="password"
           className="w-full px-3 py-2 rounded bg-white/5 border border-white/10"
-          placeholder="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Admin password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && onLogin()}
         />
+
         <button
-          onClick={login}
-          className="w-full px-4 py-2 rounded bg-white text-black font-bold"
+          onClick={onLogin}
+          disabled={loading}
+          className="w-full px-4 py-2 rounded bg-white text-black font-bold disabled:opacity-60"
         >
-          Send Login Link
+          {loading ? "Signing in..." : "Login"}
         </button>
       </div>
     </div>
