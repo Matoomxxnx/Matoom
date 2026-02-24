@@ -14,10 +14,17 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
       });
-      const j = await r.json();
-      if (!r.ok) return alert(j?.message ?? "Login failed");
 
-      window.location.href = "/admin/dashboard"; // ✅ ชัวร์
+      const j = await r.json().catch(() => ({}));
+
+      if (!r.ok) {
+        alert(j?.message ?? `Login failed (${r.status})`);
+        return;
+      }
+
+      window.location.href = "/admin/dashboard";
+    } catch (e: any) {
+      alert(e?.message ?? "Network error");
     } finally {
       setLoading(false);
     }
