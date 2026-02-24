@@ -10,8 +10,8 @@ type Member = {
 };
 
 async function getMembers() {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/api/members`, {
-    cache: "no-store",
+  const res = await fetch("https://matoom.vercel.app/api/members", {
+  cache: "no-store",
   });
   const json = await res.json();
   return (json?.data ?? []) as Member[];
