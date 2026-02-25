@@ -38,14 +38,22 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         />
 
         {/* ✅ Footer แบบไม่เลื่อน (ติดล่างเหมือนรูป) */}
-        <div className="fixed inset-x-0 bottom-0 z-40 pointer-events-none">
-          <div className="mx-auto w-[80%] h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-          <div className="py-4 text-center">
-            <p className="text-[11px] tracking-[0.45em] uppercase text-white/25">
-              SYSTEM DESIGN BY <span className="text-white/45 font-semibold">MALI CLOUD</span>
-            </p>
-          </div>
-        </div>
+       <div className="fixed inset-x-0 bottom-0 z-40 pointer-events-none">
+  <div className="mx-auto w-[80%] h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+  <div className="py-4 text-center">
+    <p className="text-[11px] tracking-[0.45em] uppercase text-white/25 pointer-events-auto">
+      SYSTEM DESIGN BY{" "}
+      <a
+        href="https://www.facebook.com/matoom1123"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-white/45 font-semibold hover:text-white transition"
+      >
+        Matoom Wellesley
+      </a>
+    </p>
+  </div>
+</div>
       </body>
     </html>
   );
