@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 const partners = [{ name: "MEENPRO", href: "/meenpro", featured: true }];
 
@@ -89,7 +90,7 @@ export default function Page() {
             <div className="flex flex-col items-center w-full mt-6 mb-2">
               <div className="flex justify-center items-center w-full max-w-7xl">
                 {partners.map((p) => (
-                  <a
+                  <Link
                     key={p.name}
                     href={p.href}
                     className={[
@@ -102,7 +103,7 @@ export default function Page() {
                         {p.name}
                       </span>
                     </div>
-                  </a>
+                  </Link>
                 ))}
               </div>
             </div>
