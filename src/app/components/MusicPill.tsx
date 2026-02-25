@@ -33,8 +33,15 @@ export default function MusicPill({
   const [cur, setCur] = useState(0);
 
   // ✅ UI states
-  const [open, setOpen] = useState(false); // เปิดการ์ดใหญ่
-  const [minimized, setMinimized] = useState(true); // pill
+  const [open, setOpen] = useState(false);
+  const [minimized, setMinimized] = useState(true);
+
+  // ✅ volume state (แก้ให้เป็น state จริง)
+  const [vol, setVol] = useState(volume);
+
+  // ✅ dragging state (กัน timeupdate มาตีกับการลาก)
+  const [isSeeking, setIsSeeking] = useState(false);
+  const [seekVal, setSeekVal] = useState(0);
 
   // ✅ restore state
   useEffect(() => {
@@ -46,6 +53,7 @@ export default function MusicPill({
         if (typeof j.time === "number") setCur(j.time);
         if (typeof j.open === "boolean") setOpen(j.open);
         if (typeof j.minimized === "boolean") setMinimized(j.minimized);
+        if (typeof j.vol === "number") setVol(j.vol);
       }
     } catch {}
   }, []);
@@ -55,17 +63,17 @@ export default function MusicPill({
     try {
       localStorage.setItem(
         "music_ui_v3",
-        JSON.stringify({ playing, time: cur, open, minimized })
+        JSON.stringify({ playing, time: cur, open, minimized, vol })
       );
     } catch {}
-  }, [playing, cur, open, minimized]);
+  }, [playing, cur, open, minimized, vol]);
 
   // ✅ bind audio
   useEffect(() => {
     const a = audioRef.current;
     if (!a) return;
 
-    a.volume = volume;
+    a.volume = vol;
     a.loop = loop;
 
     // restore time
@@ -78,7 +86,10 @@ export default function MusicPill({
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
     const onLoaded = () => setDur(a.duration || 0);
-    const onTime = () => setCur(a.currentTime || 0);
+    const onTime = () => {
+      // ตอนลากอยู่ อย่าให้ timeupdate มาดึงค่าไปมา
+      if (!isSeeking) setCur(a.currentTime || 0);
+    };
     const onEnded = () => setPlaying(false);
 
     a.addEventListener("play", onPlay);
@@ -100,6 +111,12 @@ export default function MusicPill({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ✅ sync volume to audio when changed
+  useEffect(() => {
+    const a = audioRef.current;
+    if (a) a.volume = vol;
+  }, [vol]);
+
   const togglePlay = async () => {
     const a = audioRef.current;
     if (!a) return;
@@ -109,7 +126,7 @@ export default function MusicPill({
     } catch {}
   };
 
-  const progress = useMemo(() => {
+  const progressPct = useMemo(() => {
     if (!dur) return 0;
     return Math.min(100, Math.max(0, (cur / dur) * 100));
   }, [cur, dur]);
@@ -129,15 +146,29 @@ export default function MusicPill({
     setMinimized(true);
   };
 
+  // ✅ seek helpers
+  const applySeek = (nextTime: number) => {
+    const a = audioRef.current;
+    if (!a) return;
+    const t = Math.max(0, Math.min(dur || 0, nextTime));
+    try {
+      a.currentTime = t;
+      setCur(t);
+    } catch {}
+  };
+
+  const seekMax = Math.max(0, Math.floor(dur * 1000)); // ใช้ ms กัน decimal แปลกๆ
+  const curMs = Math.floor(cur * 1000);
+
   return (
     <>
-      {/* ✅ ซ่อน audio */}
+      {/* ✅ audio ซ่อน */}
       <audio ref={audioRef} src={src} preload="auto" style={{ display: "none" }} />
 
-      {/* ✅ Overlay (มีเฉพาะตอนเปิดการ์ดใหญ่) */}
+      {/* ✅ Overlay (ไม่เบลอ) */}
       {open && !minimized ? (
         <div
-          className="fixed inset-0 z-[998] bg-black/30 backdrop-blur-[2px]"
+          className="fixed inset-0 z-[998] bg-black/35"
           onClick={closeOverlayToPill}
         />
       ) : null}
@@ -150,7 +181,7 @@ export default function MusicPill({
             <button
               type="button"
               onClick={openCard}
-              className="bg-[#0a0a0a]/60 backdrop-blur-xl border border-white/10 p-1.5 md:pl-1 md:pr-5 md:py-1 rounded-full flex items-center gap-3 cursor-pointer group shadow-[0_8px_32px_rgba(0,0,0,0.3)] hover:border-white/20 transition-all w-full sm:w-auto"
+              className="bg-[#0a0a0a]/85 border border-white/10 p-1.5 md:pl-1 md:pr-5 md:py-1 rounded-full flex items-center gap-3 cursor-pointer group shadow-[0_8px_32px_rgba(0,0,0,0.3)] hover:border-white/20 transition-all w-full sm:w-auto"
               aria-label="open music player"
             >
               <div className="relative">
@@ -212,7 +243,7 @@ export default function MusicPill({
         {/* ===== Expanded Card (เปิด) ===== */}
         {!minimized && open ? (
           <div
-            className="ml-auto w-full sm:w-[380px] rounded-3xl bg-white/[0.06] border border-white/10 shadow-[0_30px_80px_rgba(0,0,0,0.65)] overflow-hidden backdrop-blur-md"
+            className="ml-auto w-full sm:w-[380px] rounded-3xl bg-[#0a0a0a]/90 border border-white/10 shadow-[0_30px_80px_rgba(0,0,0,0.65)] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-5 pt-4 pb-3 flex items-center justify-between">
@@ -249,29 +280,60 @@ export default function MusicPill({
                 </div>
               </div>
 
+              {/* ✅ SEEK BAR (ลากเวลาเพลงได้) */}
               <div className="mt-5">
+                {/* bar สวยๆ */}
                 <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                  <div className="h-full bg-white/85" style={{ width: `${progress}%` }} />
+                  <div className="h-full bg-white/85" style={{ width: `${progressPct}%` }} />
                 </div>
-                <div className="mt-2 flex items-center justify-between text-[11px] text-white/50">
-                  <span>{formatTime(cur)}</span>
+
+                {/* slider จริง (ทับไว้ โปร่งใส) */}
+                <input
+                  type="range"
+                  min={0}
+                  max={seekMax || 0}
+                  value={isSeeking ? seekVal : curMs}
+                  onPointerDown={() => {
+                    setIsSeeking(true);
+                    setSeekVal(curMs);
+                  }}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    setSeekVal(v);
+                  }}
+                  onPointerUp={(e) => {
+                    const v = Number((e.target as HTMLInputElement).value);
+                    setIsSeeking(false);
+                    applySeek(v / 1000);
+                  }}
+                  onTouchEnd={(e) => {
+                    const target = e.target as HTMLInputElement;
+                    const v = Number(target.value);
+                    setIsSeeking(false);
+                    applySeek(v / 1000);
+                  }}
+                  className="-mt-2 w-full h-6 opacity-0 cursor-pointer"
+                  aria-label="seek"
+                />
+
+                <div className="mt-1 flex items-center justify-between text-[11px] text-white/50">
+                  <span>{formatTime(isSeeking ? seekVal / 1000 : cur)}</span>
                   <span>{formatTime(dur)}</span>
                 </div>
               </div>
 
+              {/* controls */}
               <div className="mt-4 flex items-center justify-between">
+                {/* volume */}
                 <input
                   type="range"
                   min={0}
                   max={1}
                   step={0.01}
-                  defaultValue={volume}
-                  onChange={(e) => {
-                    const v = Number(e.target.value);
-                    const a = audioRef.current;
-                    if (a) a.volume = v;
-                  }}
+                  value={vol}
+                  onChange={(e) => setVol(Number(e.target.value))}
                   className="w-[150px] accent-white"
+                  aria-label="volume"
                 />
 
                 <button
