@@ -1,8 +1,8 @@
 import "./globals.css";
-import GlobalPlayer from "./components/GlobalPlayer";
 import type { Metadata } from "next";
 import { ReactNode } from "react";
 import { Orbitron } from "next/font/google";
+import MusicPill from "./components/MusicPill"; // ✅ เพิ่มบรรทัดนี้
 
 const orbitron = Orbitron({
   subsets: ["latin"],
@@ -26,6 +26,15 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         className={`${orbitron.className} antialiased bg-black text-white min-h-screen flex flex-col`}
       >
         {children}
+
+        {/* ✅ ฝังเพลงทุกหน้า */}
+        <MusicPill
+          src="/music/song.mp3"
+          title="Love in the Drak"
+          cover="/music/cover.jpg"
+          volume={0.2}
+          loop
+        />
       </body>
     </html>
   );
