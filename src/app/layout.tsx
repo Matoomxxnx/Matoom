@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "MEENPRO",
     description: "BORN OF MEENPRO",
-    images: ["/uploads/Meenpro1.png"],
+    images: ["/uploads/meenpro.png"],
   },
 };
 
