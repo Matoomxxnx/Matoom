@@ -36,7 +36,7 @@ export default function MeenproPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [q, setQ] = useState("");
 
-  // ✅ เพลง (แก้ชื่อไฟล์ได้ตามจริงใน public/music)
+  // ✅ เพลง (ให้ไฟล์มีจริงใน public/music)
   const SONG = {
     title: "KMP IN MY HEART",
     artist: "KINGMEENPRO",
@@ -57,12 +57,12 @@ export default function MeenproPage() {
       .catch(() => setMembers([]));
   }, []);
 
-  // ✅ ตั้ง volume ให้ audio
+  // volume
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume]);
 
-  // ✅ กัน state เพี้ยนตอนเปลี่ยนหน้า/รีเฟรช
+  // sync audio events
   useEffect(() => {
     const a = audioRef.current;
     if (!a) return;
@@ -93,13 +93,10 @@ export default function MeenproPage() {
     if (!a) return;
 
     try {
-      if (a.paused) {
-        await a.play();
-      } else {
-        a.pause();
-      }
+      if (a.paused) await a.play();
+      else a.pause();
     } catch {
-      // ถ้า browser block autoplay หรือไฟล์ไม่เจอ จะเงียบไว้
+      // ถ้า browser block หรือไฟล์ไม่เจอ จะเงียบไว้
     }
   };
 
@@ -236,7 +233,7 @@ export default function MeenproPage() {
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-white">
-      {/* ✅ Audio (ซ่อนไว้ แต่เล่นได้) */}
+      {/* ✅ Audio */}
       <audio ref={audioRef} src={SONG.audioSrc} preload="metadata" />
 
       {/* Header */}
@@ -247,87 +244,6 @@ export default function MeenproPage() {
         <p className="text-xs md:text-sm text-white/35 uppercase tracking-[0.6em] text-center mt-3">
           MEENPRO MEMBERS
         </p>
-
-        {/* ✅ Now Playing Card (แบบตัวอย่าง) */}
-        <div className="mt-10 flex justify-center">
-          <div className="w-[360px] max-w-[92vw] rounded-3xl bg-white/[0.06] border border-white/10 shadow-[0_30px_80px_rgba(0,0,0,0.65)] overflow-hidden">
-            <div className="px-5 pt-4 pb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-[11px] tracking-[0.22em] text-white/60">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-white/70" />
-                <span>NOW PLAYING</span>
-              </div>
-              <span className="text-white/30 text-xs">⌄</span>
-            </div>
-
-            <div className="px-5 pb-5">
-              <div className="flex items-center gap-4">
-                <div className="w-[56px] h-[56px] rounded-2xl overflow-hidden border border-white/10 bg-black/40">
-                  <img src={SONG.coverSrc} alt="cover" className="w-full h-full object-cover" />
-                </div>
-
-                <div className="min-w-0">
-                  <div className="text-[14px] font-semibold tracking-[0.12em] uppercase truncate">
-                    {SONG.title}
-                  </div>
-                  <div className="text-[11px] tracking-[0.28em] uppercase text-white/55 truncate mt-1">
-                    {SONG.artist}
-                  </div>
-                </div>
-              </div>
-
-              {/* progress */}
-              <div className="mt-5">
-                <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                  <div className="h-full bg-white/85" style={{ width: `${progress}%` }} />
-                </div>
-                <div className="mt-2 flex items-center justify-between text-[11px] text-white/50">
-                  <span>{formatTime(current)}</span>
-                  <span>{formatTime(duration)}</span>
-                </div>
-              </div>
-
-              {/* controls */}
-              <div className="mt-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <svg width="18" height="18" viewBox="0 0 24 24" className="text-white/60">
-                    <path
-                      fill="currentColor"
-                      d="M14 3.23v17.54c0 .62-.7.98-1.2.63L7.5 17H4c-1.1 0-2-.9-2-2V9c0-1.1.9-2 2-2h3.5l5.3-4.4c.5-.35 1.2.01 1.2.63z"
-                    />
-                  </svg>
-
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={volume}
-                    onChange={(e) => setVolume(Number(e.target.value))}
-                    className="w-[130px] accent-white"
-                  />
-                </div>
-
-                <button
-                  onClick={togglePlay}
-                  className="w-14 h-14 rounded-full bg-white text-black grid place-items-center shadow-[0_10px_30px_rgba(255,255,255,0.18)] hover:scale-[1.03] active:scale-[0.98] transition"
-                  aria-label={isPlaying ? "pause" : "play"}
-                  type="button"
-                >
-                  {isPlaying ? (
-                    <div className="flex gap-1.5">
-                      <span className="w-1.5 h-6 bg-black rounded" />
-                      <span className="w-1.5 h-6 bg-black rounded" />
-                    </div>
-                  ) : (
-                    <svg width="22" height="22" viewBox="0 0 24 24">
-                      <path fill="currentColor" d="M8 5v14l11-7z" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
 
         {/* Search */}
         <div className="mt-10 flex justify-center">
@@ -344,11 +260,132 @@ export default function MeenproPage() {
         </div>
       </div>
 
-      {/* Sections */}
-      <div className="max-w-6xl mx-auto px-6 pb-20">
+      {/* Sections (เพิ่ม pb กันโดน player ทับ) */}
+      <div className="max-w-6xl mx-auto px-6 pb-44">
         <Section title="FOUNDERS" indexLabel="01" items={groups.FOUNDERS} accent="gold" />
         <Section title="LEADERS" indexLabel="02" items={groups.LEADERS} accent="red" />
         <Section title="MEMBERS" indexLabel="03" items={groups.MEMBERS} accent="white" />
+      </div>
+
+      {/* ✅ Desktop/Tablet: Floating Card ขวาล่าง */}
+      <div className="hidden sm:block fixed bottom-6 right-6 z-50">
+        <div className="w-[360px] rounded-3xl bg-white/[0.06] border border-white/10 shadow-[0_30px_80px_rgba(0,0,0,0.65)] overflow-hidden backdrop-blur-md">
+          <div className="px-5 pt-4 pb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-[11px] tracking-[0.22em] text-white/60">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-white/70" />
+              <span>NOW PLAYING</span>
+            </div>
+            <span className="text-white/30 text-xs">⌄</span>
+          </div>
+
+          <div className="px-5 pb-5">
+            <div className="flex items-center gap-4">
+              <div className="w-[56px] h-[56px] rounded-2xl overflow-hidden border border-white/10 bg-black/40">
+                <img src={SONG.coverSrc} alt="cover" className="w-full h-full object-cover" />
+              </div>
+
+              <div className="min-w-0">
+                <div className="text-[14px] font-semibold tracking-[0.12em] uppercase truncate">
+                  {SONG.title}
+                </div>
+                <div className="text-[11px] tracking-[0.28em] uppercase text-white/55 truncate mt-1">
+                  {SONG.artist}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5">
+              <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                <div className="h-full bg-white/85" style={{ width: `${progress}%` }} />
+              </div>
+              <div className="mt-2 flex items-center justify-between text-[11px] text-white/50">
+                <span>{formatTime(current)}</span>
+                <span>{formatTime(duration)}</span>
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <svg width="18" height="18" viewBox="0 0 24 24" className="text-white/60">
+                  <path
+                    fill="currentColor"
+                    d="M14 3.23v17.54c0 .62-.7.98-1.2.63L7.5 17H4c-1.1 0-2-.9-2-2V9c0-1.1.9-2 2-2h3.5l5.3-4.4c.5-.35 1.2.01 1.2.63z"
+                  />
+                </svg>
+
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={volume}
+                  onChange={(e) => setVolume(Number(e.target.value))}
+                  className="w-[130px] accent-white"
+                />
+              </div>
+
+              <button
+                onClick={togglePlay}
+                className="w-14 h-14 rounded-full bg-white text-black grid place-items-center shadow-[0_10px_30px_rgba(255,255,255,0.18)] hover:scale-[1.03] active:scale-[0.98] transition"
+                aria-label={isPlaying ? "pause" : "play"}
+                type="button"
+              >
+                {isPlaying ? (
+                  <div className="flex gap-1.5">
+                    <span className="w-1.5 h-6 bg-black rounded" />
+                    <span className="w-1.5 h-6 bg-black rounded" />
+                  </div>
+                ) : (
+                  <svg width="22" height="22" viewBox="0 0 24 24">
+                    <path fill="currentColor" d="M8 5v14l11-7z" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ✅ Mobile: Mini Player ติดล่างเต็มจอ */}
+      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-50">
+        <div className="px-4 py-3 bg-black/70 backdrop-blur-md border-t border-white/10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl overflow-hidden border border-white/10 bg-black/40 shrink-0">
+              <img src={SONG.coverSrc} alt="cover" className="w-full h-full object-cover" />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <div className="text-[12px] font-semibold uppercase tracking-[0.12em] truncate">
+                {SONG.title}
+              </div>
+              <div className="text-[10px] uppercase tracking-[0.28em] text-white/55 truncate mt-0.5">
+                {SONG.artist}
+              </div>
+
+              <div className="mt-2 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                <div className="h-full bg-white/85" style={{ width: `${progress}%` }} />
+              </div>
+            </div>
+
+            <button
+              onClick={togglePlay}
+              className="w-12 h-12 rounded-full bg-white text-black grid place-items-center shrink-0"
+              aria-label={isPlaying ? "pause" : "play"}
+              type="button"
+            >
+              {isPlaying ? (
+                <div className="flex gap-1.5">
+                  <span className="w-1.5 h-6 bg-black rounded" />
+                  <span className="w-1.5 h-6 bg-black rounded" />
+                </div>
+              ) : (
+                <svg width="22" height="22" viewBox="0 0 24 24">
+                  <path fill="currentColor" d="M8 5v14l11-7z" />
+                </svg>
+              )}
+            </button>
+          </div>
+        </div>
       </div>
     </main>
   );
