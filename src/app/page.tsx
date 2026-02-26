@@ -50,7 +50,7 @@ export default function Page() {
         {/* Background layers */}
         <div className="absolute inset-0 z-0 pointer-events-none">
           <div
-            className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-40 animate-pulse-slow"
+            className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-0 animate-pulse-slow"
             style={{
               backgroundImage:
                 "url(https://img2.pic.in.th/20260226203642_1.png)",
