@@ -32,14 +32,14 @@ export default function MusicPill({
   const [dur, setDur] = useState(0);
   const [cur, setCur] = useState(0);
 
-  // ✅ UI states
+  // UI states
   const [open, setOpen] = useState(false);
   const [minimized, setMinimized] = useState(true);
 
-  // ✅ volume state (แก้ให้เป็น state จริง)
+  // volume state
   const [vol, setVol] = useState(volume);
 
-  // ✅ dragging state (กัน timeupdate มาตีกับการลาก)
+  // seeking state
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekVal, setSeekVal] = useState(0);
 
@@ -68,15 +68,14 @@ export default function MusicPill({
     } catch {}
   }, [playing, cur, open, minimized, vol]);
 
-  // ✅ bind audio
+  // ✅ bind audio listeners + restore time
   useEffect(() => {
     const a = audioRef.current;
     if (!a) return;
 
-    a.volume = vol;
     a.loop = loop;
+    a.volume = vol;
 
-    // restore time
     if (Number.isFinite(cur) && cur > 0) {
       try {
         a.currentTime = cur;
@@ -87,7 +86,6 @@ export default function MusicPill({
     const onPause = () => setPlaying(false);
     const onLoaded = () => setDur(a.duration || 0);
     const onTime = () => {
-      // ตอนลากอยู่ อย่าให้ timeupdate มาดึงค่าไปมา
       if (!isSeeking) setCur(a.currentTime || 0);
     };
     const onEnded = () => setPlaying(false);
@@ -97,9 +95,6 @@ export default function MusicPill({
     a.addEventListener("loadedmetadata", onLoaded);
     a.addEventListener("timeupdate", onTime);
     a.addEventListener("ended", onEnded);
-
-    // try resume
-    if (playing) a.play().catch(() => {});
 
     return () => {
       a.removeEventListener("play", onPlay);
@@ -111,11 +106,42 @@ export default function MusicPill({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ✅ sync volume to audio when changed
+  // ✅ sync volume
   useEffect(() => {
     const a = audioRef.current;
     if (a) a.volume = vol;
   }, [vol]);
+
+  // ✅ MUTED TRICK AUTOPLAY (เล่นเองตอนเข้าเว็บ)
+  useEffect(() => {
+    const a = audioRef.current;
+    if (!a) return;
+
+    const startPlayback = async () => {
+      try {
+        // เล่นแบบ muted ก่อนให้ผ่าน policy
+        a.muted = true;
+        await a.play();
+
+        // แล้วค่อยเปิดเสียง
+        a.muted = false;
+        setPlaying(true);
+      } catch {
+        // ถ้ายังโดนบล็อก: ให้เล่นทันทีหลังคลิกครั้งแรก
+        const resumeOnClick = async () => {
+          try {
+            a.muted = false;
+            await a.play();
+            setPlaying(true);
+          } catch {}
+          window.removeEventListener("click", resumeOnClick);
+        };
+        window.addEventListener("click", resumeOnClick);
+      }
+    };
+
+    startPlayback();
+  }, []);
 
   const togglePlay = async () => {
     const a = audioRef.current;
@@ -141,11 +167,6 @@ export default function MusicPill({
     setMinimized(true);
   };
 
-  const closeOverlayToPill = () => {
-    setOpen(false);
-    setMinimized(true);
-  };
-
   // ✅ seek helpers
   const applySeek = (nextTime: number) => {
     const a = audioRef.current;
@@ -157,201 +178,200 @@ export default function MusicPill({
     } catch {}
   };
 
-  const seekMax = Math.max(0, Math.floor(dur * 1000)); // ใช้ ms กัน decimal แปลกๆ
+  const seekMax = Math.max(0, Math.floor(dur * 1000)); // ms
   const curMs = Math.floor(cur * 1000);
 
   return (
     <>
-      {/* ✅ audio ซ่อน */}
-      <audio ref={audioRef} src={src} preload="auto" style={{ display: "none" }} />
+      {/* ✅ audio ซ่อน + autoplay + muted trick */}
+      <audio
+        ref={audioRef}
+        src={src}
+        preload="auto"
+        autoPlay
+        muted
+        playsInline
+        style={{ display: "none" }}
+      />
 
-      {/* ✅ Overlay (ไม่เบลอ) */}
-      
-
-      {/* ✅ UI ลอยมุมขวาล่าง */}
-      <div className="fixed bottom-6 right-6 z-[999] font-sans select-none w-[92vw] sm:w-auto">
-        {/* ===== Pill (ย่อ) ===== */}
-        {minimized ? (
-          <div className="ml-auto w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={openCard}
-              className="bg-[#0a0a0a]/85 border border-white/10 p-1.5 md:pl-1 md:pr-5 md:py-1 rounded-full flex items-center gap-3 cursor-pointer group shadow-[0_8px_32px_rgba(0,0,0,0.3)] hover:border-white/20 transition-all w-full sm:w-auto"
-              aria-label="open music player"
-            >
-              <div className="relative">
-                <div className="w-10 h-10 rounded-full relative overflow-hidden ring-2 ring-white/5 group-hover:ring-white/20 transition-all">
-                  <img
-                    src={cover}
-                    alt={title}
-                    className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
-                  />
-                  <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                    {playing ? (
-                      <div className="flex gap-1">
-                        <span className="w-1 h-4 bg-white rounded" />
-                        <span className="w-1 h-4 bg-white rounded" />
-                      </div>
-                    ) : (
-                      <svg width="14" height="14" viewBox="0 0 24 24" className="text-white">
-                        <path fill="currentColor" d="M8 5v14l11-7z" />
-                      </svg>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="hidden md:flex flex-col text-left">
-                <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest group-hover:text-white/60 transition-colors">
-                  Music
-                </span>
-                <span className="text-[10px] font-bold text-white uppercase tracking-wider truncate max-w-[180px]">
-                  {title}
-                </span>
-              </div>
-
-              {/* ปุ่มเล่น/หยุดใน pill */}
+      {/* ✅ UI ลอยมุมขวาล่าง (ไม่ทำ overlay บังด้านหลัง) */}
+      <div className="fixed bottom-6 right-6 z-[999] font-sans select-none w-[92vw] sm:w-auto pointer-events-none">
+        <div className="pointer-events-auto">
+          {/* ===== Pill (ย่อ) ===== */}
+          {minimized ? (
+            <div className="ml-auto w-full sm:w-auto">
               <button
                 type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  togglePlay();
-                }}
-                className="ml-auto md:ml-2 w-9 h-9 rounded-full bg-white/10 border border-white/10 hover:bg-white/15 grid place-items-center"
-                aria-label={playing ? "pause" : "play"}
+                onClick={openCard}
+                className="bg-[#0a0a0a]/85 border border-white/10 p-1.5 md:pl-1 md:pr-5 md:py-1 rounded-full flex items-center gap-3 cursor-pointer group shadow-[0_8px_32px_rgba(0,0,0,0.3)] hover:border-white/20 transition-all w-full sm:w-auto"
+                aria-label="open music player"
               >
-                {playing ? (
-                  <div className="flex gap-1">
-                    <span className="w-1 h-4 bg-white rounded" />
-                    <span className="w-1 h-4 bg-white rounded" />
+                <div className="relative">
+                  <div className="w-10 h-10 rounded-full relative overflow-hidden ring-2 ring-white/5 group-hover:ring-white/20 transition-all">
+                    <img
+                      src={cover}
+                      alt={title}
+                      className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
+                    />
+                    <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                      {playing ? (
+                        <div className="flex gap-1">
+                          <span className="w-1 h-4 bg-white rounded" />
+                          <span className="w-1 h-4 bg-white rounded" />
+                        </div>
+                      ) : (
+                        <svg width="14" height="14" viewBox="0 0 24 24" className="text-white">
+                          <path fill="currentColor" d="M8 5v14l11-7z" />
+                        </svg>
+                      )}
+                    </div>
                   </div>
-                ) : (
-                  <svg width="16" height="16" viewBox="0 0 24 24" className="text-white">
-                    <path fill="currentColor" d="M8 5v14l11-7z" />
-                  </svg>
-                )}
-              </button>
-            </button>
-          </div>
-        ) : null}
-
-        {/* ===== Expanded Card (เปิด) ===== */}
-        {!minimized && open ? (
-          <div
-            className="ml-auto w-full sm:w-[380px] rounded-3xl bg-[#0a0a0a]/90 border border-white/10 shadow-[0_30px_80px_rgba(0,0,0,0.65)] overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-5 pt-4 pb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-[11px] tracking-[0.22em] text-white/60">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-white/70" />
-                <span>NOW PLAYING</span>
-              </div>
-
-              <button
-                type="button"
-                onClick={minimizeCard}
-                className="text-white/40 hover:text-white/70 transition p-2 -m-2"
-                aria-label="minimize"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24">
-                  <path fill="currentColor" d="M7 10l5 5l5-5z" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="px-5 pb-5">
-              <div className="flex items-center gap-4">
-                <div className="w-[56px] h-[56px] rounded-2xl overflow-hidden border border-white/10 bg-black/40">
-                  <img src={cover} alt="cover" className="w-full h-full object-cover" />
                 </div>
 
-                <div className="min-w-0">
-                  <div className="text-[14px] font-semibold tracking-[0.12em] uppercase truncate">
+                <div className="hidden md:flex flex-col text-left">
+                  <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest group-hover:text-white/60 transition-colors">
+                    Music
+                  </span>
+                  <span className="text-[10px] font-bold text-white uppercase tracking-wider truncate max-w-[180px]">
                     {title}
-                  </div>
-                  <div className="text-[11px] tracking-[0.28em] uppercase text-white/55 truncate mt-1">
-                    {artist}
-                  </div>
-                </div>
-              </div>
-
-              {/* ✅ SEEK BAR (ลากเวลาเพลงได้) */}
-              <div className="mt-5">
-                {/* bar สวยๆ */}
-                <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                  <div className="h-full bg-white/85" style={{ width: `${progressPct}%` }} />
+                  </span>
                 </div>
 
-                {/* slider จริง (ทับไว้ โปร่งใส) */}
-                <input
-                  type="range"
-                  min={0}
-                  max={seekMax || 0}
-                  value={isSeeking ? seekVal : curMs}
-                  onPointerDown={() => {
-                    setIsSeeking(true);
-                    setSeekVal(curMs);
-                  }}
-                  onChange={(e) => {
-                    const v = Number(e.target.value);
-                    setSeekVal(v);
-                  }}
-                  onPointerUp={(e) => {
-                    const v = Number((e.target as HTMLInputElement).value);
-                    setIsSeeking(false);
-                    applySeek(v / 1000);
-                  }}
-                  onTouchEnd={(e) => {
-                    const target = e.target as HTMLInputElement;
-                    const v = Number(target.value);
-                    setIsSeeking(false);
-                    applySeek(v / 1000);
-                  }}
-                  className="-mt-2 w-full h-6 opacity-0 cursor-pointer"
-                  aria-label="seek"
-                />
-
-                <div className="mt-1 flex items-center justify-between text-[11px] text-white/50">
-                  <span>{formatTime(isSeeking ? seekVal / 1000 : cur)}</span>
-                  <span>{formatTime(dur)}</span>
-                </div>
-              </div>
-
-              {/* controls */}
-              <div className="mt-4 flex items-center justify-between">
-                {/* volume */}
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={vol}
-                  onChange={(e) => setVol(Number(e.target.value))}
-                  className="w-[150px] accent-white"
-                  aria-label="volume"
-                />
-
+                {/* ปุ่มเล่น/หยุดใน pill */}
                 <button
-                  onClick={togglePlay}
-                  className="w-14 h-14 rounded-full bg-white text-black grid place-items-center shadow-[0_10px_30px_rgba(255,255,255,0.18)] hover:scale-[1.03] active:scale-[0.98] transition"
-                  aria-label={playing ? "pause" : "play"}
                   type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    togglePlay();
+                  }}
+                  className="ml-auto md:ml-2 w-9 h-9 rounded-full bg-white/10 border border-white/10 hover:bg-white/15 grid place-items-center"
+                  aria-label={playing ? "pause" : "play"}
                 >
                   {playing ? (
-                    <div className="flex gap-1.5">
-                      <span className="w-1.5 h-6 bg-black rounded" />
-                      <span className="w-1.5 h-6 bg-black rounded" />
+                    <div className="flex gap-1">
+                      <span className="w-1 h-4 bg-white rounded" />
+                      <span className="w-1 h-4 bg-white rounded" />
                     </div>
                   ) : (
-                    <svg width="22" height="22" viewBox="0 0 24 24">
+                    <svg width="16" height="16" viewBox="0 0 24 24" className="text-white">
                       <path fill="currentColor" d="M8 5v14l11-7z" />
                     </svg>
                   )}
                 </button>
+              </button>
+            </div>
+          ) : null}
+
+          {/* ===== Expanded Card (เปิด) ===== */}
+          {!minimized && open ? (
+            <div className="ml-auto w-full sm:w-[380px] rounded-3xl bg-[#0a0a0a]/90 border border-white/10 shadow-[0_30px_80px_rgba(0,0,0,0.65)] overflow-hidden">
+              <div className="px-5 pt-4 pb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-[11px] tracking-[0.22em] text-white/60">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-white/70" />
+                  <span>NOW PLAYING</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={minimizeCard}
+                  className="text-white/40 hover:text-white/70 transition p-2 -m-2"
+                  aria-label="minimize"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24">
+                    <path fill="currentColor" d="M7 10l5 5l5-5z" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="px-5 pb-5">
+                <div className="flex items-center gap-4">
+                  <div className="w-[56px] h-[56px] rounded-2xl overflow-hidden border border-white/10 bg-black/40">
+                    <img src={cover} alt="cover" className="w-full h-full object-cover" />
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="text-[14px] font-semibold tracking-[0.12em] uppercase truncate">
+                      {title}
+                    </div>
+                    <div className="text-[11px] tracking-[0.28em] uppercase text-white/55 truncate mt-1">
+                      {artist}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ✅ SEEK BAR */}
+                <div className="mt-5">
+                  <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                    <div className="h-full bg-white/85" style={{ width: `${progressPct}%` }} />
+                  </div>
+
+                  {/* slider จริง (ทับไว้ โปร่งใส) */}
+                  <input
+                    type="range"
+                    min={0}
+                    max={seekMax || 0}
+                    value={isSeeking ? seekVal : curMs}
+                    onPointerDown={() => {
+                      setIsSeeking(true);
+                      setSeekVal(curMs);
+                    }}
+                    onChange={(e) => setSeekVal(Number(e.target.value))}
+                    onPointerUp={(e) => {
+                      const v = Number((e.target as HTMLInputElement).value);
+                      setIsSeeking(false);
+                      applySeek(v / 1000);
+                    }}
+                    onTouchEnd={(e) => {
+                      const target = e.target as HTMLInputElement;
+                      const v = Number(target.value);
+                      setIsSeeking(false);
+                      applySeek(v / 1000);
+                    }}
+                    className="-mt-2 w-full h-6 opacity-0 cursor-pointer"
+                    aria-label="seek"
+                  />
+
+                  <div className="mt-1 flex items-center justify-between text-[11px] text-white/50">
+                    <span>{formatTime(isSeeking ? seekVal / 1000 : cur)}</span>
+                    <span>{formatTime(dur)}</span>
+                  </div>
+                </div>
+
+                {/* controls */}
+                <div className="mt-4 flex items-center justify-between">
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={vol}
+                    onChange={(e) => setVol(Number(e.target.value))}
+                    className="w-[150px] accent-white"
+                    aria-label="volume"
+                  />
+
+                  <button
+                    onClick={togglePlay}
+                    className="w-14 h-14 rounded-full bg-white text-black grid place-items-center shadow-[0_10px_30px_rgba(255,255,255,0.18)] hover:scale-[1.03] active:scale-[0.98] transition"
+                    aria-label={playing ? "pause" : "play"}
+                    type="button"
+                  >
+                    {playing ? (
+                      <div className="flex gap-1.5">
+                        <span className="w-1.5 h-6 bg-black rounded" />
+                        <span className="w-1.5 h-6 bg-black rounded" />
+                      </div>
+                    ) : (
+                      <svg width="22" height="22" viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M8 5v14l11-7z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </div>
     </>
   );
