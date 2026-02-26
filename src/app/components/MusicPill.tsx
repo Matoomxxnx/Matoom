@@ -1,384 +1,395 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-type Props = {
-  src: string;
-  title: string;
-  artist?: string;
-  cover: string;
-  volume?: number;
-  loop?: boolean;
+type Member = {
+  id: string;
+  name: string | null;
+  role: string | null;
+  facebook_url: string | null;
+  avatar_url: string | null;
+  sort_order?: number | null;
+  is_active?: boolean | null;
+  created_at?: string | null;
 };
 
-function formatTime(sec: number) {
-  if (!Number.isFinite(sec) || sec < 0) return "0:00";
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  return `${m}:${String(s).padStart(2, "0")}`;
+function normalizeRole(role?: string | null) {
+  const r = (role ?? "").trim().toLowerCase();
+  if (["founder", "founders", "owner", "boss", "admin"].includes(r)) return "FOUNDERS";
+  if (["leader", "leaders", "mod", "manager"].includes(r)) return "LEADERS";
+  if (["member", "members", "user"].includes(r)) return "MEMBERS";
+  return "MEMBERS";
 }
 
-export default function MusicPill({
-  src,
-  title,
-  artist = "MEENPRO",
-  cover,
-  volume = 0.2,
-  loop = true,
-}: Props) {
-  const audioRef = useRef<HTMLAudioElement>(null);
+function safeText(v?: string | null) {
+  return (v ?? "").toString();
+}
 
-  const [playing, setPlaying] = useState(false);
-  const [dur, setDur] = useState(0);
-  const [cur, setCur] = useState(0);
+export default function MeenproPage() {
+  const [members, setMembers] = useState<Member[]>([]);
+  const [q, setQ] = useState("");
 
-  const [open, setOpen] = useState(false);
-  const [minimized, setMinimized] = useState(true);
-
-  const [vol, setVol] = useState(volume);
-
-  const [isSeeking, setIsSeeking] = useState(false);
-  const [seekVal, setSeekVal] = useState(0);
-
-  // ✅ restore state - ไม่ set playing เพราะ audio event จะ set เอง
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("music_ui_v3");
-      if (saved) {
-        const j = JSON.parse(saved);
-        if (typeof j.time === "number") setCur(j.time);
-        if (typeof j.open === "boolean") setOpen(j.open);
-        if (typeof j.minimized === "boolean") setMinimized(j.minimized);
-        if (typeof j.vol === "number") setVol(j.vol);
-      }
-    } catch {}
+    fetch("/api/members")
+      .then((res) => res.json())
+      .then((json) => setMembers(Array.isArray(json?.data) ? json.data : []))
+      .catch(() => setMembers([]));
   }, []);
 
-  // ✅ persist state
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        "music_ui_v3",
-        JSON.stringify({ playing, time: cur, open, minimized, vol })
-      );
-    } catch {}
-  }, [playing, cur, open, minimized, vol]);
+  const filtered = useMemo(() => {
+    const query = q.trim().toLowerCase();
+    return members
+      .filter((m) => (m.is_active === undefined || m.is_active === null ? true : !!m.is_active))
+      .filter((m) => {
+        if (!query) return true;
+        const hay = `${safeText(m.name)} ${safeText(m.role)}`.toLowerCase();
+        return hay.includes(query);
+      })
+      .sort((a, b) => {
+        const ao = a.sort_order ?? 999999;
+        const bo = b.sort_order ?? 999999;
+        if (ao !== bo) return ao - bo;
+        const ad = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const bd = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return ad - bd;
+      });
+  }, [members, q]);
 
-  // ✅ bind audio listeners
-  useEffect(() => {
-    const a = audioRef.current;
-    if (!a) return;
-
-    a.loop = loop;
-    a.volume = vol;
-
-    const onPlay = () => setPlaying(true);
-    const onPause = () => setPlaying(false);
-    const onLoaded = () => setDur(a.duration || 0);
-    const onTime = () => {
-      if (!isSeeking) setCur(a.currentTime || 0);
+  const groups = useMemo(() => {
+    const g: Record<"FOUNDERS" | "LEADERS" | "MEMBERS", Member[]> = {
+      FOUNDERS: [],
+      LEADERS: [],
+      MEMBERS: [],
     };
-    const onEnded = () => setPlaying(false);
-
-    a.addEventListener("play", onPlay);
-    a.addEventListener("pause", onPause);
-    a.addEventListener("loadedmetadata", onLoaded);
-    a.addEventListener("timeupdate", onTime);
-    a.addEventListener("ended", onEnded);
-
-    return () => {
-      a.removeEventListener("play", onPlay);
-      a.removeEventListener("pause", onPause);
-      a.removeEventListener("loadedmetadata", onLoaded);
-      a.removeEventListener("timeupdate", onTime);
-      a.removeEventListener("ended", onEnded);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ✅ sync volume
-  useEffect(() => {
-    const a = audioRef.current;
-    if (a) a.volume = vol;
-  }, [vol]);
-
-  // ✅ AUTOPLAY - รอ loadedmetadata ก่อน seek แล้วค่อย play
-  useEffect(() => {
-    const a = audioRef.current;
-    if (!a) return;
-
-    const startPlay = async () => {
-      try {
-        // restore เวลาก่อน play
-        const saved = localStorage.getItem("music_ui_v3");
-        if (saved) {
-          const j = JSON.parse(saved);
-          if (typeof j.time === "number" && Number.isFinite(j.time) && j.time > 0) {
-            try { a.currentTime = j.time; } catch {}
-          }
-        }
-
-        a.muted = true;
-        a.volume = vol;
-        await a.play();
-        setPlaying(true);
-
-        // unmute ทันที ถ้า browser อนุญาต
-        a.muted = false;
-      } catch {
-        // browser บล็อก → รอ interaction แรก
-        const resume = async () => {
-          try {
-            a.muted = false;
-            a.volume = vol;
-            await a.play();
-            setPlaying(true);
-          } catch {}
-        };
-        window.addEventListener("pointerdown", resume, { once: true });
-        window.addEventListener("touchstart", resume, { once: true });
-        window.addEventListener("click", resume, { once: true });
-      }
-    };
-
-    // ถ้า metadata โหลดแล้ว → เล่นเลย, ยังไม่โหลด → รอ
-    if (a.readyState >= 1) {
-      startPlay();
-    } else {
-      a.addEventListener("loadedmetadata", startPlay, { once: true });
+    for (const m of filtered) {
+      const key = normalizeRole(m.role) as "FOUNDERS" | "LEADERS" | "MEMBERS";
+      g[key].push(m);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    return g;
+  }, [filtered]);
 
-  const togglePlay = async () => {
-    const a = audioRef.current;
-    if (!a) return;
-    try {
-      if (a.paused) {
-        a.muted = false;
-        await a.play();
-      } else {
-        a.pause();
-      }
-    } catch {}
+  const Section = ({
+    title,
+    indexLabel,
+    items,
+    accent,
+  }: {
+    title: string;
+    indexLabel: string;
+    items: Member[];
+    accent: "gold" | "red" | "white";
+  }) => {
+    const accentColor =
+      accent === "gold" ? "#FFD700" : accent === "red" ? "#FF2D2D" : "#FFFFFF";
+
+    return (
+      <section className="w-full mt-14">
+        {/* Section header */}
+        <div className="flex items-center gap-4 mb-6">
+          <div
+            className="text-xs font-bold px-2 py-1"
+            style={{
+              background: accentColor,
+              color: "#000",
+              fontFamily: "'Space Mono', monospace",
+              letterSpacing: "0.2em",
+            }}
+          >
+            {indexLabel}
+          </div>
+          <h2
+            className="text-3xl md:text-4xl font-black uppercase"
+            style={{
+              fontFamily: "'Bebas Neue', sans-serif",
+              letterSpacing: "0.15em",
+              color: accentColor,
+            }}
+          >
+            {title}
+          </h2>
+          <div className="flex-1 h-px" style={{ background: `${accentColor}33` }} />
+          <span
+            className="text-xs tracking-widest"
+            style={{ color: `${accentColor}55`, fontFamily: "'Space Mono', monospace" }}
+          >
+            {items.length} TOTAL
+          </span>
+        </div>
+
+        {items.length === 0 ? (
+          <p className="text-white/30 text-sm" style={{ fontFamily: "'Space Mono', monospace" }}>
+            — NO MEMBERS YET —
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {items.map((m) => (
+              <div
+                key={m.id}
+                className="group relative overflow-hidden transition-all duration-200"
+                style={{
+                  background: "#0a0a0a",
+                  border: `1px solid rgba(255,255,255,0.08)`,
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLDivElement).style.borderColor = `${accentColor}55`;
+                  (e.currentTarget as HTMLDivElement).style.background = "#111";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,255,255,0.08)";
+                  (e.currentTarget as HTMLDivElement).style.background = "#0a0a0a";
+                }}
+              >
+                {/* Accent left bar */}
+                <div
+                  className="absolute left-0 top-0 bottom-0 w-[3px]"
+                  style={{ background: accentColor, opacity: 0.75 }}
+                />
+
+                {/* Corner tag */}
+                <div
+                  className="absolute top-0 right-0 text-[8px] font-bold px-2 py-0.5 tracking-widest"
+                  style={{
+                    background: `${accentColor}15`,
+                    color: accentColor,
+                    fontFamily: "'Space Mono', monospace",
+                    borderLeft: `1px solid ${accentColor}33`,
+                    borderBottom: `1px solid ${accentColor}33`,
+                  }}
+                >
+                  {title.slice(0, -1)}
+                </div>
+
+                <div className="p-4 pl-6 flex items-center gap-4">
+                  {/* Avatar */}
+                  <div className="relative flex-shrink-0">
+                    <img
+                      src={m.avatar_url || "/uploads/meenpro.png"}
+                      alt={safeText(m.name) || "member"}
+                      className="w-12 h-12 object-cover"
+                      style={{ border: `2px solid ${accentColor}44` }}
+                    />
+                    <span
+                      className="absolute -bottom-1 -right-1 w-2.5 h-2.5"
+                      style={{
+                        background: "#00FF88",
+                        boxShadow: "0 0 8px rgba(0,255,136,0.9)",
+                      }}
+                    />
+                  </div>
+
+                  {/* Info */}
+                  <div className="min-w-0 flex-1">
+                    <h3
+                      className="font-black uppercase truncate text-white leading-tight"
+                      style={{
+                        fontFamily: "'Bebas Neue', sans-serif",
+                        letterSpacing: "0.1em",
+                        fontSize: "1.1rem",
+                      }}
+                    >
+                      {safeText(m.name) || "UNNAMED"}
+                    </h3>
+                    {m.facebook_url ? (
+                      <a
+                        href={m.facebook_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] transition-opacity"
+                        style={{
+                          color: accentColor,
+                          fontFamily: "'Space Mono', monospace",
+                          opacity: 0.65,
+                          textDecoration: "none",
+                        }}
+                        onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.opacity = "1")}
+                        onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.opacity = "0.65")}
+                      >
+                        FACEBOOK ↗
+                      </a>
+                    ) : (
+                      <p
+                        className="text-[11px]"
+                        style={{ color: "rgba(255,255,255,0.2)", fontFamily: "'Space Mono', monospace" }}
+                      >
+                        NO LINK
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    );
   };
-
-  const progressPct = useMemo(() => {
-    if (!dur) return 0;
-    return Math.min(100, Math.max(0, (cur / dur) * 100));
-  }, [cur, dur]);
-
-  const openCard = () => {
-    setMinimized(false);
-    setOpen(true);
-  };
-
-  const minimizeCard = () => {
-    setOpen(false);
-    setMinimized(true);
-  };
-
-  const applySeek = (nextTime: number) => {
-    const a = audioRef.current;
-    if (!a) return;
-    const t = Math.max(0, Math.min(dur || 0, nextTime));
-    try {
-      a.currentTime = t;
-      setCur(t);
-    } catch {}
-  };
-
-  const seekMax = Math.max(0, Math.floor(dur * 1000));
-  const curMs = Math.floor(cur * 1000);
 
   return (
     <>
-      <audio
-        ref={audioRef}
-        src={src}
-        preload="auto"
-        autoPlay
-        muted
-        playsInline
-        style={{ display: "none" }}
-      />
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap');
 
-      <div className="fixed bottom-6 right-6 z-[999] font-sans select-none w-[92vw] sm:w-auto pointer-events-none">
-        <div className="pointer-events-auto">
-          {/* ===== Pill (ย่อ) ===== */}
-          {minimized ? (
-            <div className="ml-auto w-full sm:w-auto">
-              <button
-                type="button"
-                onClick={openCard}
-                className="bg-[#0a0a0a]/85 border border-white/10 p-1.5 md:pl-1 md:pr-5 md:py-1 rounded-full flex items-center gap-3 cursor-pointer group shadow-[0_8px_32px_rgba(0,0,0,0.3)] hover:border-white/20 transition-all w-full sm:w-auto"
-                aria-label="open music player"
-              >
-                <div className="relative">
-                  <div className="w-10 h-10 rounded-full relative overflow-hidden ring-2 ring-white/5 group-hover:ring-white/20 transition-all">
-                    <img
-                      src={cover}
-                      alt={title}
-                      className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
-                    />
-                    <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                      {playing ? (
-                        <div className="flex gap-1">
-                          <span className="w-1 h-4 bg-white rounded" />
-                          <span className="w-1 h-4 bg-white rounded" />
-                        </div>
-                      ) : (
-                        <svg width="14" height="14" viewBox="0 0 24 24" className="text-white">
-                          <path fill="currentColor" d="M8 5v14l11-7z" />
-                        </svg>
-                      )}
-                    </div>
-                  </div>
-                </div>
+        @keyframes marquee {
+          0%   { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+        @keyframes scanline {
+          0%   { top: -80px; }
+          100% { top: 100vh; }
+        }
+        @keyframes blink {
+          0%,49%  { opacity: 1; }
+          50%,99% { opacity: 0; }
+          100%    { opacity: 1; }
+        }
+        .marquee-inner { animation: marquee 22s linear infinite; display: flex; width: max-content; }
+        .scanline-anim { animation: scanline 7s linear infinite; }
+        .blink         { animation: blink 1.1s step-end infinite; }
+      `}</style>
 
-                <div className="hidden md:flex flex-col text-left">
-                  <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest group-hover:text-white/60 transition-colors">
-                    Music
-                  </span>
-                  <span className="text-[10px] font-bold text-white uppercase tracking-wider truncate max-w-[180px]">
-                    {title}
-                  </span>
-                </div>
+      <main
+        className="flex-1 flex flex-col text-white relative overflow-hidden"
+        style={{ background: "#000000" }}
+      >
+        {/* ── BG: Noise / grain texture ── */}
+        <div
+          className="fixed inset-0 pointer-events-none"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+            backgroundRepeat: "repeat",
+            backgroundSize: "160px 160px",
+            opacity: 0.045,
+            mixBlendMode: "screen",
+          }}
+        />
 
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    togglePlay();
+        {/* ── BG: Soft vignette ── */}
+        <div
+          className="fixed inset-0 pointer-events-none"
+          style={{
+            background: "radial-gradient(ellipse 110% 90% at 50% 50%, transparent 40%, rgba(0,0,0,0.75) 100%)",
+          }}
+        />
+
+        {/* ── Top border + marquee ── */}
+        <div className="fixed top-0 inset-x-0 pointer-events-none" style={{ zIndex: 50 }}>
+          <div className="h-[2px] bg-white w-full" />
+          <div
+            className="overflow-hidden"
+            style={{ background: "#000", borderBottom: "1px solid rgba(255,255,255,0.1)", height: "20px" }}
+          >
+            <div className="marquee-inner">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <span
+                  key={i}
+                  className="text-[9px] font-bold mr-10"
+                  style={{
+                    color: "rgba(255,255,255,0.22)",
+                    fontFamily: "'Space Mono', monospace",
+                    letterSpacing: "0.5em",
+                    lineHeight: "20px",
                   }}
-                  className="ml-auto md:ml-2 w-9 h-9 rounded-full bg-white/10 border border-white/10 hover:bg-white/15 grid place-items-center"
-                  aria-label={playing ? "pause" : "play"}
                 >
-                  {playing ? (
-                    <div className="flex gap-1">
-                      <span className="w-1 h-4 bg-white rounded" />
-                      <span className="w-1 h-4 bg-white rounded" />
-                    </div>
-                  ) : (
-                    <svg width="16" height="16" viewBox="0 0 24 24" className="text-white">
-                      <path fill="currentColor" d="M8 5v14l11-7z" />
-                    </svg>
-                  )}
-                </button>
-              </button>
+                  KINGMEENPRO ✦ KMP IN MY HEART ✦ MEENPRO MEMBERS ✦
+                </span>
+              ))}
             </div>
-          ) : null}
-
-          {/* ===== Expanded Card (เปิด) ===== */}
-          {!minimized && open ? (
-            <div className="ml-auto w-full sm:w-[380px] rounded-3xl bg-[#0a0a0a]/90 border border-white/10 shadow-[0_30px_80px_rgba(0,0,0,0.65)] overflow-hidden">
-              <div className="px-5 pt-4 pb-3 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-[11px] tracking-[0.22em] text-white/60">
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-white/70" />
-                  <span>NOW PLAYING</span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={minimizeCard}
-                  className="text-white/40 hover:text-white/70 transition p-2 -m-2"
-                  aria-label="minimize"
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24">
-                    <path fill="currentColor" d="M7 10l5 5l5-5z" />
-                  </svg>
-                </button>
-              </div>
-
-              <div className="px-5 pb-5">
-                <div className="flex items-center gap-4">
-                  <div className="w-[56px] h-[56px] rounded-2xl overflow-hidden border border-white/10 bg-black/40">
-                    <img src={cover} alt="cover" className="w-full h-full object-cover" />
-                  </div>
-
-                  <div className="min-w-0">
-                    <div className="text-[14px] font-semibold tracking-[0.12em] uppercase truncate">
-                      {title}
-                    </div>
-                    <div className="text-[11px] tracking-[0.28em] uppercase text-white/55 truncate mt-1">
-                      {artist}
-                    </div>
-                  </div>
-                </div>
-
-                {/* ✅ SEEK BAR */}
-                <div className="mt-5">
-                  <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                    <div className="h-full bg-white/85" style={{ width: `${progressPct}%` }} />
-                  </div>
-
-                  <input
-                    type="range"
-                    min={0}
-                    max={seekMax || 0}
-                    value={isSeeking ? seekVal : curMs}
-                    onPointerDown={() => {
-                      setIsSeeking(true);
-                      setSeekVal(curMs);
-                    }}
-                    onChange={(e) => setSeekVal(Number(e.target.value))}
-                    onPointerUp={(e) => {
-                      const v = Number((e.target as HTMLInputElement).value);
-                      setIsSeeking(false);
-                      applySeek(v / 1000);
-                    }}
-                    onTouchEnd={(e) => {
-                      const target = e.target as HTMLInputElement;
-                      const v = Number(target.value);
-                      setIsSeeking(false);
-                      applySeek(v / 1000);
-                    }}
-                    className="-mt-2 w-full h-6 opacity-0 cursor-pointer"
-                    aria-label="seek"
-                  />
-
-                  <div className="mt-1 flex items-center justify-between text-[11px] text-white/50">
-                    <span>{formatTime(isSeeking ? seekVal / 1000 : cur)}</span>
-                    <span>{formatTime(dur)}</span>
-                  </div>
-                </div>
-
-                {/* controls */}
-                <div className="mt-4 flex items-center justify-between">
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={vol}
-                    onChange={(e) => setVol(Number(e.target.value))}
-                    className="w-[150px] accent-white"
-                    aria-label="volume"
-                  />
-
-                  <button
-                    onClick={togglePlay}
-                    className="w-14 h-14 rounded-full bg-white text-black grid place-items-center shadow-[0_10px_30px_rgba(255,255,255,0.18)] hover:scale-[1.03] active:scale-[0.98] transition"
-                    aria-label={playing ? "pause" : "play"}
-                    type="button"
-                  >
-                    {playing ? (
-                      <div className="flex gap-1.5">
-                        <span className="w-1.5 h-6 bg-black rounded" />
-                        <span className="w-1.5 h-6 bg-black rounded" />
-                      </div>
-                    ) : (
-                      <svg width="22" height="22" viewBox="0 0 24 24">
-                        <path fill="currentColor" d="M8 5v14l11-7z" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : null}
+          </div>
         </div>
-      </div>
+
+        {/* ── CONTENT ── */}
+        <div className="relative z-10 pt-12 flex-1 flex flex-col">
+          <div className="max-w-6xl mx-auto px-6 pt-10 pb-6">
+
+            {/* Title */}
+            <h1
+              className="text-center uppercase"
+              style={{
+                fontFamily: "'Bebas Neue', sans-serif",
+                fontSize: "clamp(3.5rem, 10vw, 7rem)",
+                letterSpacing: "0.35em",
+                color: "#FFFFFF",
+                lineHeight: 1,
+                textShadow: "0 0 60px rgba(255,255,255,0.1)",
+              }}
+            >
+              MEENPRO
+            </h1>
+
+            {/* Subtitle */}
+            <div className="flex items-center justify-center gap-3 mt-2">
+              <div className="h-px w-16" style={{ background: "rgba(255,255,255,0.18)" }} />
+              <p
+                style={{
+                  fontFamily: "'Space Mono', monospace",
+                  fontSize: "0.6rem",
+                  letterSpacing: "0.65em",
+                  color: "rgba(255,255,255,0.28)",
+                }}
+              >
+                MEMBERS DIRECTORY
+              </p>
+              <div className="h-px w-16" style={{ background: "rgba(255,255,255,0.18)" }} />
+            </div>
+
+            {/* Search */}
+            <div className="mt-10 flex justify-center">
+              <div className="w-full max-w-xl relative">
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="SEARCH_"
+                  className="w-full outline-none text-white placeholder:text-white/20 text-sm"
+                  style={{
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    borderLeft: "3px solid rgba(255,255,255,0.6)",
+                    padding: "12px 16px",
+                    fontFamily: "'Space Mono', monospace",
+                    letterSpacing: "0.1em",
+                  }}
+                  onFocus={(e) => {
+                    (e.currentTarget as HTMLInputElement).style.borderColor = "rgba(255,255,255,0.4)";
+                    (e.currentTarget as HTMLInputElement).style.borderLeftColor = "#fff";
+                  }}
+                  onBlur={(e) => {
+                    (e.currentTarget as HTMLInputElement).style.borderColor = "rgba(255,255,255,0.12)";
+                    (e.currentTarget as HTMLInputElement).style.borderLeftColor = "rgba(255,255,255,0.6)";
+                  }}
+                />
+                {!q && (
+                  <span
+                    className="blink absolute right-4 top-1/2 -translate-y-1/2 text-white/25"
+                    style={{ fontFamily: "'Space Mono', monospace" }}
+                  >
+                    █
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Sections */}
+          <div className="max-w-6xl mx-auto px-6 pb-8">
+            <Section title="FOUNDERS" indexLabel="01" items={groups.FOUNDERS} accent="gold" />
+            <Section title="LEADERS"  indexLabel="02" items={groups.LEADERS}  accent="red"  />
+            <Section title="MEMBERS"  indexLabel="03" items={groups.MEMBERS}  accent="white" />
+          </div>
+
+          {/* ── Footer credit ── */}
+          <div className="mt-auto">
+            <div
+              className="flex items-center justify-center"
+              style={{ background: "#000", borderTop: "1px solid rgba(255,255,255,0.1)", height: "42px" }}
+            >
+              <p style={{ fontFamily: "'Space Mono', monospace", fontSize: "0.6rem", letterSpacing: "0.3em", color: "rgba(255,255,255,0.3)" }}>
+                SYSTEM DESIGN BY <span style={{ color: "rgba(255,255,255,0.7)", fontWeight: 700 }}>MATOOM WELLESLEY</span>
+              </p>
+            </div>
+            <div className="h-[2px] bg-white w-full" />
+          </div>
+        </div>
+      </main>
     </>
   );
 }
