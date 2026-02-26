@@ -323,14 +323,7 @@ export default function MeenproPage() {
         <div className="relative z-10 pt-12">
           <div className="max-w-6xl mx-auto px-6 pt-10 pb-6">
 
-            {/* Logo */}
-            <div className="flex justify-center mb-4">
-              <img
-                src="/uploads/meenpro.png"
-                alt="KingMeenPro"
-                style={{ width: "80px", height: "80px", objectFit: "contain", filter: "invert(1) brightness(0.85)", opacity: 0.8 }}
-              />
-            </div>
+            
 
             {/* Title */}
             <h1
