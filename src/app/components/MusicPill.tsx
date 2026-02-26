@@ -7,7 +7,7 @@ type Props = {
   title: string;
   artist?: string;
   cover: string;
-  volume?: number; // 0-1
+  volume?: number;
   loop?: boolean;
 };
 
@@ -32,24 +32,20 @@ export default function MusicPill({
   const [dur, setDur] = useState(0);
   const [cur, setCur] = useState(0);
 
-  // UI states
   const [open, setOpen] = useState(false);
   const [minimized, setMinimized] = useState(true);
 
-  // volume state
   const [vol, setVol] = useState(volume);
 
-  // seeking state
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekVal, setSeekVal] = useState(0);
 
-  // ✅ restore state
+  // ✅ restore state - ไม่ set playing เพราะ audio event จะ set เอง
   useEffect(() => {
     try {
       const saved = localStorage.getItem("music_ui_v3");
       if (saved) {
         const j = JSON.parse(saved);
-        if (typeof j.playing === "boolean") setPlaying(j.playing);
         if (typeof j.time === "number") setCur(j.time);
         if (typeof j.open === "boolean") setOpen(j.open);
         if (typeof j.minimized === "boolean") setMinimized(j.minimized);
@@ -68,19 +64,13 @@ export default function MusicPill({
     } catch {}
   }, [playing, cur, open, minimized, vol]);
 
-  // ✅ bind audio listeners + restore time
+  // ✅ bind audio listeners
   useEffect(() => {
     const a = audioRef.current;
     if (!a) return;
 
     a.loop = loop;
     a.volume = vol;
-
-    if (Number.isFinite(cur) && cur > 0) {
-      try {
-        a.currentTime = cur;
-      } catch {}
-    }
 
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
@@ -112,23 +102,31 @@ export default function MusicPill({
     if (a) a.volume = vol;
   }, [vol]);
 
-  // ✅ MUTED TRICK AUTOPLAY (เข้าเว็บแล้วพยายามเล่นทันที)
+  // ✅ AUTOPLAY - รอ loadedmetadata ก่อน seek แล้วค่อย play
   useEffect(() => {
     const a = audioRef.current;
     if (!a) return;
 
-    const tryStart = async () => {
+    const startPlay = async () => {
       try {
-        // 1) เล่นแบบ muted ให้ติดก่อน
+        // restore เวลาก่อน play
+        const saved = localStorage.getItem("music_ui_v3");
+        if (saved) {
+          const j = JSON.parse(saved);
+          if (typeof j.time === "number" && Number.isFinite(j.time) && j.time > 0) {
+            try { a.currentTime = j.time; } catch {}
+          }
+        }
+
         a.muted = true;
         a.volume = vol;
         await a.play();
         setPlaying(true);
 
-        // 2) พยายามเปิดเสียงทันที (บางเครื่องผ่าน บางเครื่องต้องคลิก)
+        // unmute ทันที ถ้า browser อนุญาต
         a.muted = false;
       } catch {
-        // fallback: รอ interaction ครั้งแรก
+        // browser บล็อก → รอ interaction แรก
         const resume = async () => {
           try {
             a.muted = false;
@@ -143,7 +141,12 @@ export default function MusicPill({
       }
     };
 
-    tryStart();
+    // ถ้า metadata โหลดแล้ว → เล่นเลย, ยังไม่โหลด → รอ
+    if (a.readyState >= 1) {
+      startPlay();
+    } else {
+      a.addEventListener("loadedmetadata", startPlay, { once: true });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -175,7 +178,6 @@ export default function MusicPill({
     setMinimized(true);
   };
 
-  // ✅ seek helpers
   const applySeek = (nextTime: number) => {
     const a = audioRef.current;
     if (!a) return;
@@ -186,12 +188,11 @@ export default function MusicPill({
     } catch {}
   };
 
-  const seekMax = Math.max(0, Math.floor(dur * 1000)); // ms
+  const seekMax = Math.max(0, Math.floor(dur * 1000));
   const curMs = Math.floor(cur * 1000);
 
   return (
     <>
-      {/* ✅ audio ซ่อน + autoplay + muted + inline */}
       <audio
         ref={audioRef}
         src={src}
@@ -202,7 +203,6 @@ export default function MusicPill({
         style={{ display: "none" }}
       />
 
-      {/* ✅ UI ลอยมุมขวาล่าง (ไม่บังการกดด้านหลัง) */}
       <div className="fixed bottom-6 right-6 z-[999] font-sans select-none w-[92vw] sm:w-auto pointer-events-none">
         <div className="pointer-events-auto">
           {/* ===== Pill (ย่อ) ===== */}
@@ -245,7 +245,6 @@ export default function MusicPill({
                   </span>
                 </div>
 
-                {/* ปุ่มเล่น/หยุดใน pill */}
                 <button
                   type="button"
                   onClick={(e) => {
