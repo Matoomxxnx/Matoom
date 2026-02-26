@@ -26,6 +26,15 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body className={`${orbitron.className} antialiased bg-black text-white min-h-screen flex flex-col`}>
         <PageEnterLoader>{children}</PageEnterLoader>
 
+        {/* ✅ UI เพลงทุกหน้า */}
+        <MusicPill
+          src="/music/song.mp3"
+          title="One Of The Girls"
+          artist="The Weeknd" 
+          cover="/music/cover.jpg"
+          volume={0.2}
+          loop
+        />
       </body>
     </html>
   );
