@@ -34,8 +34,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         {/* ✅ เพลงทุกหน้า (มีตัวเดียวพอ) */}
         <MusicPill
           src="/music/song.mp3"
-          title="Love in the Drak"
-          artist="Adele"
+          title="One Of The Girls"
+          artist="The Weeknd"
           cover="/music/cover.jpg"
           volume={0.2}
           loop
