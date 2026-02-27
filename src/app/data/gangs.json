@@ -1,11 +1,10 @@
-[
-  {
-    "slug": "wellesley",
-    "name": "WELLESLEY",
-    "description": "BORN OF WINTERFELL",
-    "members": [
-      { "name": "Member 01" },
-      { "name": "Member 02" }
-    ]
-  }
-]
+{
+  "wellesley": [
+    { "id": "W01", "name": "Vincenzo Q.", "role": "Leader", "status": "active" },
+    { "id": "W02", "name": "Elena Ross", "role": "Enforcer", "status": "missing" }
+  ],
+  "meenpro": [
+    { "id": "M01", "name": "Marcus Kane", "role": "Technician", "status": "active" },
+    { "id": "M02", "name": "Dante Black", "role": "Hitman", "status": "unknown" }
+  ]
+}
